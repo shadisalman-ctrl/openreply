@@ -76,6 +76,9 @@ The button creates your web deployment. You still need to configure the database
 
 ### Run it locally
 
+**Android / Termux:** [One-file configuration installer](docs/termux.md) sets up
+Ubuntu, local PostgreSQL and Redis, and a free ngrok tunnel using one `.env` file.
+
 ```bash
 git clone https://github.com/diwenne/openreply.git
 cd openreply
