@@ -1,4 +1,6 @@
-import { EMAIL_PROVIDER_ID, signIn } from "@/lib/auth";
+import { ADMIN_LOGIN_ENABLED, EMAIL_PROVIDER_ID, signIn } from "@/lib/auth";
+import { AuthError } from "next-auth";
+import { redirect } from "next/navigation";
 import { getI18n } from "@/lib/i18n/server";
 import { getCampaignTemplate } from "@/lib/templates/campaign-templates";
 import { DemoNotice } from "@/components/demo-notice";
@@ -22,6 +24,7 @@ export default async function LoginPage({
     checkEmail?: string;
     callbackUrl?: string;
     template?: string;
+    error?: string;
   }>;
 }) {
   const { t } = await getI18n();
@@ -54,7 +57,7 @@ export default async function LoginPage({
   }
 
   const params = await searchParams;
-  const checkEmail = params.checkEmail === "1";
+  const checkEmail = !ADMIN_LOGIN_ENABLED && params.checkEmail === "1";
   const selectedTemplate = getCampaignTemplate(params.template);
   const templateCallbackUrl = selectedTemplate
     ? `/campaigns/new?template=${selectedTemplate.slug}`
@@ -69,6 +72,22 @@ export default async function LoginPage({
     });
   }
 
+  async function signInAdmin(formData: FormData) {
+    "use server";
+    try {
+      await signIn("credentials", {
+        username: String(formData.get("username") ?? ""),
+        password: String(formData.get("password") ?? ""),
+        redirectTo: callbackUrl,
+      });
+    } catch (error) {
+      if (error instanceof AuthError) {
+        redirect(`/login?error=login&callbackUrl=${encodeURIComponent(callbackUrl)}`);
+      }
+      throw error;
+    }
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center px-6">
       <div className="w-full max-w-md">
@@ -79,7 +98,9 @@ export default async function LoginPage({
           <p className="text-muted text-sm leading-relaxed mt-2">
             {selectedTemplate
               ? t("Sign in to use the {name} template.", { name: selectedTemplate.title })
-              : t("Sign in by email, then connect your Instagram professional account.")}
+              : ADMIN_LOGIN_ENABLED
+                ? "Sign in to your OpenReply dashboard."
+                : t("Sign in by email, then connect your Instagram professional account.")}
           </p>
         </div>
 
@@ -97,7 +118,28 @@ export default async function LoginPage({
             </div>
           )}
 
-          {checkEmail ? (
+          {ADMIN_LOGIN_ENABLED ? (
+            <form action={signInAdmin} className="space-y-5">
+              {params.error && (
+                <p role="alert" className="text-sm text-red-400">
+                  Unable to sign in. Check your credentials, or wait a minute and try again.
+                </p>
+              )}
+              <div className="space-y-2">
+                <label htmlFor="username" className="block text-sm font-medium">Username</label>
+                <input id="username" name="username" autoComplete="username" required maxLength={64}
+                  className="w-full px-4 py-3 rounded bg-surface border border-border text-sm" />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="password" className="block text-sm font-medium">Password</label>
+                <input id="password" name="password" type="password" autoComplete="current-password" required maxLength={1024}
+                  className="w-full px-4 py-3 rounded bg-surface border border-border text-sm" />
+              </div>
+              <button type="submit" className="w-full rounded bg-accent px-6 py-3.5 text-sm font-semibold text-white">
+                Sign in
+              </button>
+            </form>
+          ) : checkEmail ? (
             <div className="text-center py-4">
               <h2 className="text-lg font-semibold mb-2">{t("Check your email")}</h2>
               <p className="text-sm text-muted">

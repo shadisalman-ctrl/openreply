@@ -1,10 +1,14 @@
 import NextAuth, { type NextAuthConfig } from "next-auth";
 import Nodemailer from "next-auth/providers/nodemailer";
 import Resend from "next-auth/providers/resend";
+import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/db/client";
 import { ensureWorkspaceForUser, getPrimaryWorkspace } from "@/lib/workspace";
 import { isEmailAllowedToSignIn } from "@/lib/env";
+import { ADMIN_LOGIN_ENABLED, ADMIN_USER_ID, adminSessionVersion, authorizeAdmin } from "@/lib/admin-auth";
+
+export { ADMIN_LOGIN_ENABLED } from "@/lib/admin-auth";
 
 type AdapterPrismaClient = Parameters<typeof PrismaAdapter>[0];
 
@@ -23,7 +27,15 @@ export const EMAIL_PROVIDER_ID = smtpServer ? "nodemailer" : "resend";
 export const authConfig = {
   adapter: PrismaAdapter(prisma as unknown as AdapterPrismaClient),
   providers: [
-    smtpServer
+    ADMIN_LOGIN_ENABLED
+      ? Credentials({
+          credentials: {
+            username: { label: "Username", type: "text" },
+            password: { label: "Password", type: "password" },
+          },
+          authorize: authorizeAdmin,
+        })
+      : smtpServer
       ? Nodemailer({ server: smtpServer, from: emailFrom })
       : Resend({
           apiKey: process.env.RESEND_API_KEY ?? "missing-resend-api-key",
@@ -34,11 +46,20 @@ export const authConfig = {
     // Runs before the magic link is sent, so a blocked address never receives
     // one, and again when the link is verified.
     async signIn({ user }) {
+      if (ADMIN_LOGIN_ENABLED) return user.id === ADMIN_USER_ID;
       return isEmailAllowedToSignIn(user?.email);
     },
-    async session({ session, user }) {
+    async jwt({ token, user }) {
+      if (ADMIN_LOGIN_ENABLED) {
+        const version = adminSessionVersion();
+        if (user) token.adminVersion = version;
+        if (token.sub !== ADMIN_USER_ID || token.adminVersion !== version) return null;
+      }
+      return token;
+    },
+    async session({ session, user, token }) {
       if (session.user) {
-        session.user.id = user.id;
+        session.user.id = ADMIN_LOGIN_ENABLED ? token.sub! : user.id;
       }
       return session;
     },
@@ -55,7 +76,7 @@ export const authConfig = {
     verifyRequest: "/verify-request",
   },
   session: {
-    strategy: "database",
+    strategy: ADMIN_LOGIN_ENABLED ? "jwt" : "database",
   },
   trustHost: true,
   secret: process.env.NEXTAUTH_SECRET,

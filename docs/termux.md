@@ -29,11 +29,25 @@ bash scripts/termux.sh start
 ```
 
 Fill `NEXTAUTH_URL` with the HTTPS development domain assigned to your free ngrok
-account, and `NGROK_AUTHTOKEN` with that account's agent token. Configure
-`EMAIL_SERVER`, `EMAIL_FROM`, and `ALLOWED_EMAILS` for your email account. Gmail
-requires an app password and two-step verification. Remove spaces from its app
-password and URL-encode SMTP credentials (`@` becomes `%40`). SMTP access may not
-be available on every account. Never use your regular Gmail password here.
+account, and `NGROK_AUTHTOKEN` with that account's agent token. Set `AUTH_MODE=admin`, choose `ADMIN_USERNAME`, and set a unique
+`ADMIN_PASSWORD` of at least 16 characters (keep it quoted). No Gmail, SMTP,
+Resend, or other email service is needed. The public login page asks for your
+username and password. There is no email signup or password-reset flow in admin
+mode. Change the password in `.env` and restart to reset it; this also invalidates
+existing admin sessions. Redis limits login attempts to 20 per minute across the
+instance. If Redis is unavailable, login fails closed.
+
+For an existing install, remove the email entries if desired and add:
+
+```dotenv
+AUTH_MODE=admin
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD="your-unique-long-password"
+```
+
+The admin receives a separate workspace. Existing email users' workspaces are
+not automatically transferred. Keep email mode if you need access to an existing
+email workspace until you explicitly migrate it.
 
 The installer fills blank application secrets, the webhook verification token,
 and a randomly password-protected local database URL. It preserves nonblank
@@ -61,7 +75,7 @@ supervisor. The start message means windows were created, not that all services
 passed their health checks. Check each window and visit:
 
 - `http://localhost:3000/api/health` for database, Redis, and worker health.
-- Your `NEXTAUTH_URL` for the public dashboard and magic-link sign-in.
+- Your `NEXTAUTH_URL` for the public dashboard and administrator sign-in.
 
 After changing `.env`, restart:
 
@@ -98,7 +112,7 @@ currently includes an account-associated development domain, 20,000 HTTP request
 and 1 GB outgoing traffic per month. Dashboard assets and webhooks both count.
 It displays a browser warning page. There is no paid-tier upgrade in the script.
 Provider availability and Meta approval must be checked for your account/region.
-Your phone, internet connection, email account, and ngrok quotas determine uptime.
+Your phone, internet connection, and ngrok quotas determine uptime.
 
 Keep protected backups of `.env` and the PostgreSQL database off the phone.
 The encryption key must be preserved to read existing stored credentials.

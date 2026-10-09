@@ -3,11 +3,20 @@ import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
 process.loadEnvFile('.env');
-const required = ['NEXTAUTH_URL', 'NGROK_AUTHTOKEN', 'EMAIL_SERVER', 'EMAIL_FROM', 'ALLOWED_EMAILS'];
+const required = ['NEXTAUTH_URL', 'NGROK_AUTHTOKEN'];
+if (process.env.AUTH_MODE === 'admin') {
+  required.push('ADMIN_USERNAME', 'ADMIN_PASSWORD');
+} else {
+  required.push('EMAIL_SERVER', 'EMAIL_FROM', 'ALLOWED_EMAILS');
+}
 for (const name of required) {
   if (!process.env[name] || /YOUR_|replace-with/.test(process.env[name])) {
     throw new Error(`Fill ${name} in .env before installing.`);
   }
+}
+if (process.env.AUTH_MODE === 'admin' &&
+    (process.env.ADMIN_PASSWORD.length < 16 || process.env.ADMIN_PASSWORD.length > 1024 || process.env.ADMIN_USERNAME.length > 64)) {
+  throw new Error('Choose an admin password of 16–1024 characters and username of at most 64 characters.');
 }
 const origin = new URL(process.env.NEXTAUTH_URL);
 if (origin.protocol !== 'https:' || origin.pathname !== '/' || origin.search || origin.hash) {
